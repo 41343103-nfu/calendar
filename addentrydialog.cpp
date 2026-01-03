@@ -195,13 +195,13 @@ QWidget* AddEntryDialog::buildTodoPage() {
 }
 
 QWidget* AddEntryDialog::buildKeypad() {
-    auto *w = new QWidget(this);
-    auto *g = new QGridLayout(w);
+    keypad = new QWidget(this);
+    auto *g = new QGridLayout(keypad);
     g->setContentsMargins(0,0,0,0);
     g->setSpacing(6);
 
     auto mk = [&](const QString& t){
-        auto *b = new QPushButton(t, w);
+        auto *b = new QPushButton(t, keypad);
         b->setFixedHeight(54);
         return b;
     };
@@ -239,7 +239,7 @@ QWidget* AddEntryDialog::buildKeypad() {
         }
     }
 
-    return w;
+    return keypad ;
 }
 
 void AddEntryDialog::switchPage(Page p) {
@@ -249,6 +249,9 @@ void AddEntryDialog::switchPage(Page p) {
     segExpense->setChecked(p == Expense);
     segIncome->setChecked(p == Income);
     segTodo->setChecked(p == TodoPage);
+    if (keypad) {
+        keypad->setVisible(p != TodoPage);//計算機切到代辦就隱藏
+    }
 }
 
 void AddEntryDialog::updateDateLabel() {
@@ -319,7 +322,7 @@ void AddEntryDialog::applyStyle() {
         "QDateTimeEdit::up-button { width: 20px; background: transparent; border: none; }"
         "QDateTimeEdit::down-button { width: 20px; background: transparent; border: none; }"
         "QDateTimeEdit::up-arrow { image: none; border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 5px solid white; }"
-        "QDateTimeEdit::down-arrow { image: none; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 5px solid white; }"
+    "QDateTimeEdit::down-arrow { image: none; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 5px solid white; }"
     )" ).arg(BG.name(), TEXT.name(), PANEL.name()));
 }
 void AddEntryDialog::setInitialTitle(const QString &title) {

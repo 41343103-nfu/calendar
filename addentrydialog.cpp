@@ -313,7 +313,10 @@ void AddEntryDialog::applyStyle() {
         QCheckBox { spacing: 8px; }
 
         QDateTimeEdit { background: %3; border: 1px solid #2A2A2A; border-radius: 10px; padding: 8px; color: %2; }
-    )").arg(BG.name(), TEXT.name(), PANEL.name()));
+
+        QDateTimeEdit::up-button { width: 35px; background-color: #555 !important; border-top-right-radius: 10px; }
+        QDateTimeEdit::down-button { width: 35px; background-color: #555 !important; border-bottom-right-radius: 10px; }
+)").arg(BG.name(), TEXT.name(), PANEL.name()));
 }
 void AddEntryDialog::setInitialTitle(const QString &title) {
     if (todoTitle) {

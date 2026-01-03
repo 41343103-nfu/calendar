@@ -1,10 +1,10 @@
 #pragma once
 #include <QMainWindow>
-#include <QVector>
-#include <QSet>
 #include <QDate>
+#include <QVector>
 
 #include "models.h"
+#include "account.h"
 
 class QLabel;
 class QListWidget;
@@ -26,6 +26,8 @@ private:
     void refreshDayList(const QDate& d);
     void refreshCalendarMarks();
 
+    void checkBudgetWarning(const QDate& d);
+
 private:
     DotCalendar *cal = nullptr;
     QLabel *monthTitle = nullptr;
@@ -37,6 +39,8 @@ private:
     QToolButton *btnPlus = nullptr;
     QToolButton *btnTodo = nullptr;
 
-    QVector<Txn> txns;
     QVector<Todo> todos;
+
+    Account account;
+    QDate currentDate;
 };

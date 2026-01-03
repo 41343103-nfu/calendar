@@ -6,24 +6,25 @@
 #include <QJsonArray>
 #include <QDir>
 
-// ===== 建構子 =====
-Account::Account()
-{
-}
+Account::Account() {}
 
-// ===== 新增一筆記帳 =====
 void Account::addItem(const AccountItem &item)
 {
     m_items.append(item);
 }
 
-// ===== 清空當日資料（切換日期時用）=====
+bool Account::removeAt(int index)
+{
+    if (index < 0 || index >= m_items.size()) return false;
+    m_items.removeAt(index);
+    return true;
+}
+
 void Account::clearDailyItems()
 {
     m_items.clear();
 }
 
-// ===== 每日結算 =====
 double Account::dailyIncome() const
 {
     double sum = 0;
@@ -49,7 +50,6 @@ double Account::dailyNet() const
     return dailyIncome() - dailyExpense();
 }
 
-// ===== 每月結算 =====
 double Account::monthlyIncome(int year, int month)
 {
     double total = 0;
@@ -80,7 +80,6 @@ double Account::monthlyExpense(int year, int month)
     return total;
 }
 
-// ===== 預算 =====
 void Account::setMonthlyBudget(double budget)
 {
     m_monthlyBudget = budget;
@@ -93,17 +92,13 @@ double Account::getMonthlyBudget() const
 
 bool Account::isBudgetWarning(int year, int month) const
 {
-    if (m_monthlyBudget <= 0)
-        return false;
+    if (m_monthlyBudget <= 0) return false;
 
-    double expense = 0;
     Account temp = *this;
-    expense = temp.monthlyExpense(year, month);
-
-    return expense >= m_monthlyBudget * 0.8; // 80% 警告
+    double expense = temp.monthlyExpense(year, month);
+    return expense >= m_monthlyBudget * 0.8;
 }
 
-// ===== 檔案路徑 =====
 QString Account::filePath(const QDate &date) const
 {
     QDir dir("data");
@@ -113,7 +108,6 @@ QString Account::filePath(const QDate &date) const
     return QString("data/%1.json").arg(date.toString("yyyy-MM-dd"));
 }
 
-// ===== 讀檔 =====
 bool Account::loadFromFile(const QDate &date)
 {
     clearDailyItems();
@@ -131,9 +125,10 @@ bool Account::loadFromFile(const QDate &date)
     for (const auto &v : arr) {
         QJsonObject obj = v.toObject();
         AccountItem item;
+        item.date = date; // ✅ 讀檔時補上當天日期
         item.type = obj["type"].toString();
         item.category = obj["category"].toString();
-        item.amount = obj["amount"].toDouble();
+        item.amount = obj["amount"].toInt();
         item.note = obj["note"].toString();
         m_items.append(item);
     }
@@ -144,7 +139,6 @@ bool Account::loadFromFile(const QDate &date)
     return true;
 }
 
-// ===== 存檔 =====
 bool Account::saveToFile(const QDate &date) const
 {
     QJsonArray arr;

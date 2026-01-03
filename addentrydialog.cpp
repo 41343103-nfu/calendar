@@ -60,8 +60,9 @@ QWidget* AddEntryDialog::buildTopBar() {
     dateLabel = new QLabel(w);
     dateLabel->setAlignment(Qt::AlignCenter);
 
+    // 讓日期真的出現在 top bar（你原本少放這個）
     h->addWidget(btnClose);
-    h->addStretch(1);
+    h->addWidget(dateLabel, 1);
     h->addWidget(btnSave);
 
     connect(btnClose, &QPushButton::clicked, this, &QDialog::reject);
@@ -119,7 +120,6 @@ QWidget* AddEntryDialog::buildExpenseIncomePage(bool isIncome) {
     amount->setPlaceholderText("金額輸入");
     amount->setAlignment(Qt::AlignRight);
     amount->setReadOnly(true);
-
     row1->addWidget(amount);
     v->addLayout(row1);
 
@@ -227,7 +227,7 @@ QWidget* AddEntryDialog::buildKeypad() {
                 if (k == "⌫") {
                     if (!cur.isEmpty()) cur.chop(1);
                 } else if (k == ".") {
-                    // 這版先不支援小數
+                    // 先不支援小數
                 } else {
                     cur += k;
                 }
@@ -240,12 +240,14 @@ QWidget* AddEntryDialog::buildKeypad() {
 }
 
 void AddEntryDialog::switchPage(Page p) {
+    if (!pages) return;
+
     pages->setCurrentIndex(int(p));
     currentIsIncome = (p == Income);
 
-    segExpense->setChecked(p == Expense);
-    segIncome->setChecked(p == Income);
-    segTodo->setChecked(p == TodoPage);
+    if (segExpense) segExpense->setChecked(p == Expense);
+    if (segIncome)  segIncome->setChecked(p == Income);
+    if (segTodo)    segTodo->setChecked(p == TodoPage);
 }
 
 void AddEntryDialog::updateDateLabel() {
@@ -266,34 +268,35 @@ QComboBox* AddEntryDialog::currentCategoryBox() const {
 }
 
 void AddEntryDialog::onSave() {
-    if (pages->currentIndex() == TodoPage) {
+    if (pages && pages->currentIndex() == TodoPage) {
         Todo td;
-        td.title = todoTitle->text().trimmed();
+        td.title = todoTitle ? todoTitle->text().trimmed() : "";
         if (td.title.isEmpty()) { reject(); return; }
 
-        td.allDay = allDay->isChecked();
-        td.start = startDT->dateTime();
-        td.end   = endDT->dateTime();
+        td.allDay = allDay ? allDay->isChecked() : true;
+        td.start = startDT ? startDT->dateTime() : QDateTime(date, QTime(9,0));
+        td.end   = endDT   ? endDT->dateTime()   : QDateTime(date, QTime(10,0));
 
         emit savedTodo(td);
         accept();
         return;
     }
 
-    Txn t;
-    t.date = date;
-    t.isIncome = currentIsIncome;
-
     QLineEdit *edit = currentAmountEdit();
-    QComboBox *cat = currentCategoryBox();
+    QComboBox *cat  = currentCategoryBox();
     if (!edit || !cat) { reject(); return; }
 
-    t.amount = edit->text().toInt();
-    t.category = cat->currentText();
+    int amount = edit->text().toInt();
+    if (amount <= 0) { reject(); return; }
 
-    if (t.amount <= 0) { reject(); return; }
+    AccountItem item;
+    item.date = this->date;
+    item.category = cat->currentText();
+    item.amount = amount;
+    item.type = currentIsIncome ? "income" : "expense";
+    item.note = ""; // 目前 UI 沒備註，先留空
 
-    emit savedExpenseIncome(t);
+    emit savedExpenseIncome(item);
     accept();
 }
 

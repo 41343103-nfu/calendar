@@ -2,6 +2,7 @@
 #include <QDialog>
 #include <QDate>
 #include "models.h"
+#include "account.h"
 
 class QLabel;
 class QLineEdit;
@@ -18,7 +19,7 @@ public:
     explicit AddEntryDialog(const QDate& selectedDate, QWidget *parent=nullptr);
 
 signals:
-    void savedExpenseIncome(const Txn& t);
+    void savedExpenseIncome(const AccountItem& item);
     void savedTodo(const Todo& td);
 
 private slots:

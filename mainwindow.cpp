@@ -83,7 +83,7 @@ MainWindow::MainWindow(QWidget *parent)
             refreshCalendarMarks(); // 重整日曆小白點和下面的清單
             refreshDayList(cal->chosenDate());}
         else if (selected == editAct) {
-                QString title = item->text().split(" (")[0].replace("[待辦] ", "");
+                QString title = item->text().split(" (")[0].replace(" [待辦] ", "");
 
                 for (int i = 0; i < todos.size(); ++i) {
                     if (todos[i].title == title) {
@@ -93,7 +93,17 @@ MainWindow::MainWindow(QWidget *parent)
                 }
                 AddEntryDialog dlg(cal->chosenDate(), this);
                 dlg.setInitialTitle(title);
-                dlg.exec();
+                connect(&dlg, &AddEntryDialog::savedTodo, this, [=](const Todo& td){
+                    todos.push_back(td);    // 把改好 8 點的資料加回去
+                    saveTodosToFile();      // 存進 todos.txt
+                });
+                // ---------------------------
+
+                // 3. 執行對話框並在關閉後刷新畫面
+                if (dlg.exec() == QDialog::Accepted) {
+                    refreshCalendarMarks();
+                    refreshDayList(cal->chosenDate()); // 這裡才會讓畫面上的 09:00 變 08:00
+                }
             }
         });
 

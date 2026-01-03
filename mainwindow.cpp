@@ -11,8 +11,8 @@
 #include <QFrame>
 #include <QFile>
 #include <QTextStream>
-#include <QMenu>   // 解決 QMenu 報錯
-#include <QAction> // 解決選單動作的報錯
+#include <QMenu>
+#include <QAction>
 
 
 static const QColor BG("#0B0B0B");
@@ -58,20 +58,18 @@ MainWindow::MainWindow(QWidget *parent)
     connect(cal, &QCalendarWidget::currentPageChanged, this, [=](int y, int m){
         monthTitle->setText(monthTitleZh(y, m));
     });
-    // 當使用者在清單上點右鍵時發動
+    //在清單上點右鍵時發動
     connect(list, &QListWidget::customContextMenuRequested, this, [=](const QPoint &pos){
         QListWidgetItem *item = list->itemAt(pos);
-        if (!item) return; // 如果點的地方沒東西就直接結束
-
+        if (!item) return;
         QMenu menu(this);
         QAction *delAct = menu.addAction("刪除這項提醒");
         QAction *selected = menu.exec(list->mapToGlobal(pos));
 
         if (selected == delAct) {
-            // 取得該項目的標題
             QString title = item->text().split(" (")[0].replace(" [待辦] ", "");
 
-            // 從 todos 陣列中移除該項目
+            //移除項目
             for (int i = 0; i < todos.size(); ++i) {
                 if (todos[i].title == title) {
                     todos.removeAt(i);
@@ -79,10 +77,10 @@ MainWindow::MainWindow(QWidget *parent)
                 }
             }
 
-            // --- 2 號核心：同步動作 ---
-            saveTodosToFile();      // 1. 同步更新檔案
-            refreshCalendarMarks(); // 2. 重新整理日曆小白點
-            refreshDayList(cal->chosenDate()); // 3. 重新整理下方清單
+            //同步
+            saveTodosToFile();      // 同步更新檔案
+            refreshCalendarMarks(); // 重整日曆小白點和下面的清單
+            refreshDayList(cal->chosenDate());
         }
     });
     refreshDayList(QDate::currentDate());
@@ -191,9 +189,9 @@ QWidget* MainWindow::buildBottomBar() {
 
         connect(&dlg, &AddEntryDialog::savedTodo, this, [=](const Todo& td){
             todos.push_back(td);
-            saveTodosToFile();        // 寫入硬碟永久保存
+            saveTodosToFile();
             refreshCalendarMarks();
-            saveTodosToFile(); // 按下儲存鈕時 立刻把資料寫進 todos.txt
+            saveTodosToFile();
         });
 
         dlg.exec();
@@ -221,7 +219,7 @@ void MainWindow::refreshDayList(const QDate &d) {
     }
 
     sumLabel->setText(QString("支出:%1").arg(sumExpense));
-    // 2.顯示待辦事項
+    // *顯示待辦事項
     for (const auto &td : todos) {
         if (td.start.date() == d) {
             QString timeStr = td.allDay ? "全天" : td.start.toString("hh:mm");

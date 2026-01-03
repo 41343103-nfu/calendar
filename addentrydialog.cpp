@@ -42,7 +42,9 @@ void AddEntryDialog::buildUi() {
     pages->addWidget(buildTodoPage());               // Todo
     root->addWidget(pages, 1);
 
-    root->addWidget(buildKeypad());
+    keypadWidget = buildKeypad();
+    root->addWidget(keypadWidget);
+
 }
 
 QWidget* AddEntryDialog::buildTopBar() {
@@ -246,7 +248,13 @@ void AddEntryDialog::switchPage(Page p) {
     if (segExpense) segExpense->setChecked(p == Expense);
     if (segIncome)  segIncome->setChecked(p == Income);
     if (segTodo)    segTodo->setChecked(p == TodoPage);
+
+    // ✅ Todo 頁隱藏 keypad；支出/收入顯示 keypad
+    if (keypadWidget) {
+        keypadWidget->setVisible(p != TodoPage);
+    }
 }
+
 
 void AddEntryDialog::updateDateLabel() {
     static const QStringList wk = {"週一","週二","週三","週四","週五","週六","週日"};

@@ -67,4 +67,6 @@ private:
     QCheckBox *allDay = nullptr;
     QDateTimeEdit *startDT = nullptr;
     QDateTimeEdit *endDT = nullptr;
+    QWidget *keypadWidget = nullptr;
+
 };

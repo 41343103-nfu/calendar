@@ -10,10 +10,19 @@
 #include <QToolButton>
 #include <QFrame>
 #include <QFile>
+<<<<<<< HEAD
 
 #include <QMessageBox>
 #include <QInputDialog>
 #include <QMenu>
+=======
+#include <QTextStream>
+#include <QMenu>
+#include <QAction>
+#include <QDialog>
+#include <QPushButton>
+
+>>>>>>> b4c91a3f047dd1b2106170cd6707e0ec599d6f48
 
 static const QColor BG("#0B0B0B");
 static const QColor PANEL("#141414");
@@ -48,11 +57,15 @@ MainWindow::MainWindow(QWidget *parent)
     setCentralWidget(root);
 
     applyStyle();
+<<<<<<< HEAD
 
     // ✅ 初始化日期 + 載入今天記帳
     currentDate = QDate::currentDate();
     account.loadFromFile(currentDate);
 
+=======
+    list->setContextMenuPolicy(Qt::CustomContextMenu); // 允許清單跳出右鍵選單
+>>>>>>> b4c91a3f047dd1b2106170cd6707e0ec599d6f48
     monthTitle->setText(monthTitleZh(cal->yearShown(), cal->monthShown()));
 
     connect(cal, &QCalendarWidget::clicked, this, [=](const QDate &d){
@@ -65,9 +78,75 @@ MainWindow::MainWindow(QWidget *parent)
         monthTitle->setText(monthTitleZh(y, m));
         refreshCalendarMarks(); // ✅ 翻月時更新點點
     });
+    //在清單上點右鍵時發動
+    connect(list, &QListWidget::customContextMenuRequested, this, [=](const QPoint &pos){
+        QListWidgetItem *item = list->itemAt(pos);
+        if (!item) return;
+        QMenu menu(this);
+        QAction *delAct = menu.addAction("刪除提醒");
+        QAction *editAct = menu.addAction("修改提醒");
+        QAction *selected = menu.exec(list->mapToGlobal(pos));
 
+        if (selected == delAct) {
+            QString title = item->text().split(" (")[0].replace(" [待辦] ", "");
+
+            //移除項目
+            for (int i = 0; i < todos.size(); ++i) {
+                if (todos[i].title == title) {
+                    todos.removeAt(i);
+                    break;
+                }
+            }
+
+            //同步
+            saveTodosToFile();      // 同步更新檔案
+            refreshCalendarMarks(); // 重整日曆小白點和下面的清單
+            refreshDayList(cal->chosenDate());}
+        else if (selected == editAct) {
+                QString title = item->text().split(" (")[0].replace(" [待辦] ", "");
+                if (!item) return;
+                QString id = item->data(Qt::UserRole).toString();
+
+                Todo td;
+                bool found = false;
+                for (const auto &t : todos) {
+                 if (t.id == id) {
+                        td = t;
+                        found = true;
+                        break;
+                    }
+                }
+            if (!found) return; // 沒找到就不開啟編輯
+
+                AddEntryDialog dlg(cal->chosenDate(), this);
+                dlg.setTodo(td);
+                connect(&dlg, &AddEntryDialog::savedTodo, this, [=](const Todo& td){
+
+                    for (int i = 0; i < todos.size(); ++i) {
+                        if (todos[i].id == td.id) {
+                            todos[i] = td;
+                            saveTodosToFile();
+                            return;
+                        }
+                    }
+                    todos.push_back(td);
+                    saveTodosToFile();
+                });
+                if (dlg.exec() == QDialog::Accepted) {
+                    refreshCalendarMarks();
+                    refreshDayList(cal->chosenDate());
+                }
+            }
+        });
+
+<<<<<<< HEAD
     refreshDayList(currentDate);
+=======
+    refreshDayList(QDate::currentDate());
+    loadTodosFromFile(); // 啟動時自動從todos.txt讀取資料
+>>>>>>> b4c91a3f047dd1b2106170cd6707e0ec599d6f48
     refreshCalendarMarks();
+
 }
 
 QWidget* MainWindow::buildTopTitle() {
@@ -184,6 +263,7 @@ QWidget* MainWindow::buildBottomBar() {
     h->addWidget(btnPlus, 1);
     h->addWidget(btnTodo, 1);
 
+<<<<<<< HEAD
     // ✅ 設定預算（用輸入框先做完功能）
     connect(btnBook, &QToolButton::clicked, this, [=]{
         bool ok = false;
@@ -208,6 +288,9 @@ QWidget* MainWindow::buildBottomBar() {
     });
 
     // ✅ 新增記帳：修正「存到別天/像沒反應」
+=======
+    connect(btnTodo, &QToolButton::clicked, this, &MainWindow::showAllTodos);
+>>>>>>> b4c91a3f047dd1b2106170cd6707e0ec599d6f48
     connect(btnPlus, &QToolButton::clicked, this, [=]{
         QDate d = cal->chosenDate();
 
@@ -234,6 +317,7 @@ QWidget* MainWindow::buildBottomBar() {
         connect(&dlg, &AddEntryDialog::savedTodo, this, [=](const Todo& td){
             todos.push_back(td);
             refreshCalendarMarks();
+            saveTodosToFile();
         });
 
         dlg.exec();
@@ -263,6 +347,16 @@ void MainWindow::refreshDayList(const QDate&) {
     }
 
     sumLabel->setText(QString("支出:%1").arg(sumExpense));
+    // *顯示待辦事項
+    for (const auto &td : todos) {
+        if (td.start.date() == d) {
+            QString timeStr = td.allDay ? "全天" : td.start.toString("hh:mm");
+            auto *item = new QListWidgetItem(QString(" [待辦] %1 (%2)").arg(td.title).arg(timeStr));
+            item->setData(Qt::UserRole, td.id);
+            list->addItem(item);
+
+        }
+    }
 }
 
 void MainWindow::refreshCalendarMarks() {
@@ -312,4 +406,63 @@ void MainWindow::applyStyle() {
         QListWidget { background: transparent; border: none; }
         QListWidget::item { padding: 10px; border-bottom: 1px solid #1E1E1E; color: %2; }
     )").arg(BG.name(), TEXT.name(), PANEL.name()));
+}
+
+void MainWindow::saveTodosToFile() {
+    QFile file("todos.txt");
+    if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QTextStream out(&file);
+        for (const auto &td : todos) {
+            out << td.id << "|"
+                << td.title << "|"
+                << td.start.toString(Qt::ISODate) << "|"
+                << td.end.toString(Qt::ISODate) << "|"
+                << (td.allDay ? "1" : "0") << "\n";
+        }
+        file.close();
+    }
+}
+
+void MainWindow::loadTodosFromFile() {
+    QFile file("todos.txt");
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) return;
+
+    QTextStream in(&file);
+    while (!in.atEnd()) {
+        QString line = in.readLine();
+        QStringList parts = line.split("|");
+        if (parts.size() >= 5) {
+            Todo td;
+            td.id    = parts[0];
+            td.title = parts[1];
+            td.start = QDateTime::fromString(parts[2], Qt::ISODate);
+            td.end   = QDateTime::fromString(parts[3], Qt::ISODate);
+            td.allDay= (parts[4] == "1");
+            todos.push_back(td);
+        }
+    }
+    file.close();
+}
+
+void MainWindow::showAllTodos() {
+    QDialog dlg(this);
+    dlg.setWindowTitle("所有待辦事項");
+    dlg.setMinimumSize(350, 500);
+
+    auto *v = new QVBoxLayout(&dlg);
+    auto *allList = new QListWidget(&dlg);
+
+    for (const auto &td : todos) {
+        QString timeStr = td.allDay ? "全天" : td.start.toString("yyyy/MM/dd hh:mm");
+        allList->addItem(QString("[%1] %2").arg(timeStr).arg(td.title));
+    }
+
+    v->addWidget(new QLabel("完整待辦清單：", &dlg));
+    v->addWidget(allList);
+
+    auto *btnClose = new QPushButton("關閉", &dlg);
+    connect(btnClose, &QPushButton::clicked, &dlg, &QDialog::accept);
+    v->addWidget(btnClose);
+
+    dlg.exec();
 }

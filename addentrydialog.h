@@ -17,7 +17,8 @@ class AddEntryDialog : public QDialog {
 public:
     enum Page { Expense=0, Income=1, TodoPage=2 };
     explicit AddEntryDialog(const QDate& selectedDate, QWidget *parent=nullptr);
-
+    void setInitialTitle(const QString &title);
+    void setTodo(const Todo& td);
 signals:
     void savedExpenseIncome(const AccountItem& item);
     void savedTodo(const Todo& td);
@@ -66,4 +67,6 @@ private:
     QCheckBox *allDay = nullptr;
     QDateTimeEdit *startDT = nullptr;
     QDateTimeEdit *endDT = nullptr;
+    QWidget* keypad = nullptr;
+    QString editingId;
 };

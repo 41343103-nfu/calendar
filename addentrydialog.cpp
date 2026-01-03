@@ -10,6 +10,7 @@
 #include <QComboBox>
 #include <QCheckBox>
 #include <QDateTimeEdit>
+#include <QLineEdit>
 
 static const QColor BG("#0B0B0B");
 static const QColor PANEL("#141414");
@@ -166,6 +167,8 @@ QWidget* AddEntryDialog::buildTodoPage() {
     endDT   = new QDateTimeEdit(QDateTime(date, QTime(10,0)), panel);
     startDT->setCalendarPopup(true);
     endDT->setCalendarPopup(true);
+    startDT->setWrapping(true);
+    endDT->setWrapping(true);
 
     auto rowS = new QHBoxLayout();
     rowS->addWidget(new QLabel("開始", panel));
@@ -192,13 +195,13 @@ QWidget* AddEntryDialog::buildTodoPage() {
 }
 
 QWidget* AddEntryDialog::buildKeypad() {
-    auto *w = new QWidget(this);
-    auto *g = new QGridLayout(w);
+    keypad = new QWidget(this);
+    auto *g = new QGridLayout(keypad);
     g->setContentsMargins(0,0,0,0);
     g->setSpacing(6);
 
     auto mk = [&](const QString& t){
-        auto *b = new QPushButton(t, w);
+        auto *b = new QPushButton(t, keypad);
         b->setFixedHeight(54);
         return b;
     };
@@ -236,7 +239,7 @@ QWidget* AddEntryDialog::buildKeypad() {
         }
     }
 
-    return w;
+    return keypad ;
 }
 
 void AddEntryDialog::switchPage(Page p) {
@@ -245,9 +248,18 @@ void AddEntryDialog::switchPage(Page p) {
     pages->setCurrentIndex(int(p));
     currentIsIncome = (p == Income);
 
+<<<<<<< HEAD
     if (segExpense) segExpense->setChecked(p == Expense);
     if (segIncome)  segIncome->setChecked(p == Income);
     if (segTodo)    segTodo->setChecked(p == TodoPage);
+=======
+    segExpense->setChecked(p == Expense);
+    segIncome->setChecked(p == Income);
+    segTodo->setChecked(p == TodoPage);
+    if (keypad) {
+        keypad->setVisible(p != TodoPage);//計算機切到代辦就隱藏
+    }
+>>>>>>> b4c91a3f047dd1b2106170cd6707e0ec599d6f48
 }
 
 void AddEntryDialog::updateDateLabel() {
@@ -314,6 +326,24 @@ void AddEntryDialog::applyStyle() {
         QComboBox { background: %3; border: 1px solid #2A2A2A; border-radius: 10px; padding: 8px; color: %2; }
         QCheckBox { spacing: 8px; }
 
-        QDateTimeEdit { background: %3; border: 1px solid #2A2A2A; border-radius: 10px; padding: 8px; color: %2; }
-    )").arg(BG.name(), TEXT.name(), PANEL.name()));
+        QDateTimeEdit { background: %3; border: 1px solid #2A2A2A; border-radius: 10px; padding: 8px; color: %2;min-width: 160px; }
+        QDateTimeEdit::up-button { subcontrol-origin: border; subcontrol-position: top right; width: 20px; border: none; }
+        "QDateTimeEdit::up-button { width: 20px; background: transparent; border: none; }"
+        "QDateTimeEdit::down-button { width: 20px; background: transparent; border: none; }"
+        "QDateTimeEdit::up-arrow { image: none; border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 5px solid white; }"
+    "QDateTimeEdit::down-arrow { image: none; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 5px solid white; }"
+    )" ).arg(BG.name(), TEXT.name(), PANEL.name()));
+}
+void AddEntryDialog::setInitialTitle(const QString &title) {
+    if (todoTitle) {
+        todoTitle->setText(title);
+    }
+}
+void AddEntryDialog::setTodo(const Todo& td) {
+    if (!todoTitle || !startDT || !endDT || !allDay) return;
+    editingId = td.id;
+    todoTitle->setText(td.title);
+    allDay->setChecked(td.allDay);
+    startDT->setDateTime(td.start);
+    endDT->setDateTime(td.end);
 }

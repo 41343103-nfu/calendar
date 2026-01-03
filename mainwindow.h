@@ -27,6 +27,8 @@ private:
     void refreshCalendarMarks();
     void saveTodosToFile();   // 存檔
     void loadTodosFromFile(); // 讀檔
+    void showAllTodos();
+
 private:
     DotCalendar *cal = nullptr;
     QLabel *monthTitle = nullptr;

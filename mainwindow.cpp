@@ -13,6 +13,8 @@
 #include <QTextStream>
 #include <QMenu>
 #include <QAction>
+#include <QDialog>
+#include <QPushButton>
 
 
 static const QColor BG("#0B0B0B");
@@ -199,6 +201,7 @@ QWidget* MainWindow::buildBottomBar() {
     h->addWidget(btnPlus, 1);
     h->addWidget(btnTodo, 1);
 
+    connect(btnTodo, &QToolButton::clicked, this, &MainWindow::showAllTodos);
     connect(btnPlus, &QToolButton::clicked, this, [=]{
         QDate d = cal->chosenDate();
 
@@ -212,7 +215,6 @@ QWidget* MainWindow::buildBottomBar() {
 
         connect(&dlg, &AddEntryDialog::savedTodo, this, [=](const Todo& td){
             todos.push_back(td);
-            saveTodosToFile();
             refreshCalendarMarks();
             saveTodosToFile();
         });
@@ -316,4 +318,27 @@ void MainWindow::loadTodosFromFile() {
         }
     }
     file.close();
+}
+
+void MainWindow::showAllTodos() {
+    QDialog dlg(this);
+    dlg.setWindowTitle("所有待辦事項");
+    dlg.setMinimumSize(350, 500);
+
+    auto *v = new QVBoxLayout(&dlg);
+    auto *allList = new QListWidget(&dlg);
+
+    for (const auto &td : todos) {
+        QString timeStr = td.allDay ? "全天" : td.start.toString("yyyy/MM/dd hh:mm");
+        allList->addItem(QString("[%1] %2").arg(timeStr).arg(td.title));
+    }
+
+    v->addWidget(new QLabel("完整待辦清單：", &dlg));
+    v->addWidget(allList);
+
+    auto *btnClose = new QPushButton("關閉", &dlg);
+    connect(btnClose, &QPushButton::clicked, &dlg, &QDialog::accept);
+    v->addWidget(btnClose);
+
+    dlg.exec();
 }

@@ -125,7 +125,7 @@ bool Account::loadFromFile(const QDate &date)
     for (const auto &v : arr) {
         QJsonObject obj = v.toObject();
         AccountItem item;
-        item.date = date; // ✅ 讀檔時補上當天日期
+        item.date = date; //  讀檔時補上當天日期
         item.type = obj["type"].toString();
         item.category = obj["category"].toString();
         item.amount = obj["amount"].toInt();
@@ -167,7 +167,7 @@ bool Account::saveToFile(const QDate &date) const
 #include <QJsonDocument>
 #include <QJsonObject>
 
-// ✅ 覆蓋某筆（給右鍵修改用）
+//  覆蓋某筆（給右鍵修改用）
 bool Account::updateAt(int idx, const AccountItem &item)
 {
     if (idx < 0 || idx >= m_items.size()) return false;

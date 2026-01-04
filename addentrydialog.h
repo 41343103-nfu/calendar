@@ -2,6 +2,7 @@
 #include <QDialog>
 #include <QDate>
 #include "models.h"
+#include "account.h"
 
 class QLabel;
 class QLineEdit;
@@ -16,10 +17,9 @@ class AddEntryDialog : public QDialog {
 public:
     enum Page { Expense=0, Income=1, TodoPage=2 };
     explicit AddEntryDialog(const QDate& selectedDate, QWidget *parent=nullptr);
-    void setInitialTitle(const QString &title);
-    void setTodo(const Todo& td);
+
 signals:
-    void savedExpenseIncome(const Txn& t);
+    void savedExpenseIncome(const AccountItem& item);
     void savedTodo(const Todo& td);
 
 private slots:
@@ -28,6 +28,7 @@ private slots:
 private:
     void buildUi();
     void applyStyle();
+
     QWidget* buildTopBar();
     QWidget* buildSegment();
     QWidget* buildExpenseIncomePage(bool isIncome);
@@ -66,6 +67,6 @@ private:
     QCheckBox *allDay = nullptr;
     QDateTimeEdit *startDT = nullptr;
     QDateTimeEdit *endDT = nullptr;
-    QWidget* keypad = nullptr;
-    QString editingId;
+    QWidget *keypadWidget = nullptr;
+
 };

@@ -37,9 +37,9 @@ void AddEntryDialog::buildUi() {
     root->addWidget(buildSegment());
 
     pages = new QStackedWidget(this);
-    pages->addWidget(buildExpenseIncomePage(false)); // Expense
-    pages->addWidget(buildExpenseIncomePage(true));  // Income
-    pages->addWidget(buildTodoPage());               // Todo
+    pages->addWidget(buildExpenseIncomePage(false));
+    pages->addWidget(buildExpenseIncomePage(true));
+    pages->addWidget(buildTodoPage());
     root->addWidget(pages, 1);
 
     keypadWidget = buildKeypad();
@@ -166,6 +166,8 @@ QWidget* AddEntryDialog::buildTodoPage() {
     endDT   = new QDateTimeEdit(QDateTime(date, QTime(10,0)), panel);
     startDT->setCalendarPopup(true);
     endDT->setCalendarPopup(true);
+    startDT->setWrapping(true);
+    endDT->setWrapping(true);
 
     auto rowS = new QHBoxLayout();
     rowS->addWidget(new QLabel("開始", panel));
@@ -249,7 +251,6 @@ void AddEntryDialog::switchPage(Page p) {
     if (segIncome)  segIncome->setChecked(p == Income);
     if (segTodo)    segTodo->setChecked(p == TodoPage);
 
-    // ✅ Todo 頁隱藏 keypad；支出/收入顯示 keypad
     if (keypadWidget) {
         keypadWidget->setVisible(p != TodoPage);
     }
@@ -311,6 +312,9 @@ void AddEntryDialog::onSave() {
 void AddEntryDialog::applyStyle() {
     setStyleSheet(QString(R"(
         QDialog { background: %1; color: %2; }
+
+
+
 
         QPushButton { border: 1px solid #2A2A2A; border-radius: 10px; padding: 6px 10px; background: #121212; color: %2; }
         QPushButton:hover { background: #1A1A1A; }

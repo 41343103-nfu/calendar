@@ -1,0 +1,29 @@
+{
+    "account": [
+        {
+            "amount": 123,
+            "category": "飲食",
+            "note": "",
+            "type": "expense"
+        },
+        {
+            "amount": 852,
+            "category": "飲食",
+            "note": "",
+            "type": "income"
+        },
+        {
+            "amount": 900,
+            "category": "飲食",
+            "note": "",
+            "type": "expense"
+        },
+        {
+            "amount": 785,
+            "category": "飲食",
+            "note": "",
+            "type": "expense"
+        }
+    ],
+    "monthly_budget": 3000
+}

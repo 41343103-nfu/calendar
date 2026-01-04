@@ -2,7 +2,6 @@
 #include "dotcalendar.h"
 #include "addentrydialog.h"
 
-#include<QStack>
 #include <QApplication>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -11,8 +10,6 @@
 #include <QToolButton>
 #include <QFrame>
 #include <QFile>
-
-
 #include <QMessageBox>
 #include <QInputDialog>
 #include <QMenu>
@@ -23,6 +20,8 @@
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QDir>
+#include <QSet>
+#include <QDateTime>
 
 static const QColor BG("#0B0B0B");
 static const QColor PANEL("#141414");
@@ -34,11 +33,16 @@ static QString monthTitleZh(int y, int m){
     return QString("%1年%2月").arg(y).arg(m);
 }
 
-// ✅ Todo 檔名：data/yyyy-MM-dd.todo.json
 static QString todoFilePath(const QDate& d) {
     QDir dir("data");
     if (!dir.exists()) dir.mkpath(".");
     return QString("data/%1.todo.json").arg(d.toString("yyyy-MM-dd"));
+}
+static bool overlapsDate(const Todo& td, const QDate& d)
+{
+    QDateTime dayStart(d, QTime(0,0));
+    QDateTime dayEnd = dayStart.addDays(1);
+    return td.start < dayEnd && td.end > dayStart;
 }
 
 MainWindow::MainWindow(QWidget *parent)
@@ -64,24 +68,26 @@ MainWindow::MainWindow(QWidget *parent)
     setCentralWidget(root);
     applyStyle();
 
-    // ✅ 初始化日期 + 載入今天記帳 + Todo
+    // 初始化日期
     currentDate = QDate::currentDate();
     account.loadFromFile(currentDate);
-    loadTodosFromFile(currentDate);
+    loadTodosForDate(currentDate);
 
     monthTitle->setText(monthTitleZh(cal->yearShown(), cal->monthShown()));
 
+    // 點選日期
     connect(cal, &QCalendarWidget::clicked, this, [=](const QDate &d){
         currentDate = d;
 
         account.loadFromFile(d);
-        loadTodosFromFile(d);
+        loadTodosForDate(d);
 
         refreshDayList(d);
         refreshTodoList(d);
         refreshMonthSummary(d);
     });
 
+    // 換月
     connect(cal, &QCalendarWidget::currentPageChanged, this, [=](int y, int m){
         monthTitle->setText(monthTitleZh(y, m));
         refreshCalendarMarks();
@@ -151,7 +157,7 @@ QWidget* MainWindow::buildListPanel() {
     v->setContentsMargins(12,10,12,10);
     v->setSpacing(8);
 
-    // ✅ 月總覽（固定最上方）
+    //月總覽（固定最上方）
     auto *summary = new QFrame(panel);
     summary->setObjectName("monthSummary");
     auto *sv = new QVBoxLayout(summary);
@@ -174,13 +180,11 @@ QWidget* MainWindow::buildListPanel() {
 
     v->addWidget(summary);
 
-    // ✅ Stack：記帳頁 / 待辦頁
+    //Stack：記帳頁 / 待辦頁
     stack = new QStackedWidget(panel);
     v->addWidget(stack);
 
-    // =========================
     // Page 0：記帳
-    // =========================
     auto *accPage = new QWidget(panel);
     auto *av = new QVBoxLayout(accPage);
     av->setContentsMargins(0,0,0,0);
@@ -194,7 +198,7 @@ QWidget* MainWindow::buildListPanel() {
     list->setObjectName("expenseList");
     av->addWidget(list);
 
-    // ✅ 右鍵刪除單筆記帳
+    //右鍵刪除單筆記帳
     list->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(list, &QListWidget::customContextMenuRequested, this, [=](const QPoint &pos){
         auto *it = list->itemAt(pos);
@@ -225,9 +229,7 @@ QWidget* MainWindow::buildListPanel() {
 
     stack->addWidget(accPage);
 
-    // =========================
     // Page 1：待辦
-    // =========================
     auto *todoPage = new QWidget(panel);
     auto *tv = new QVBoxLayout(todoPage);
     tv->setContentsMargins(0,0,0,0);
@@ -237,17 +239,29 @@ QWidget* MainWindow::buildListPanel() {
     todoList->setObjectName("todoList");
     tv->addWidget(todoList);
 
-    // ✅ 勾選完成（點一下打勾/取消），並立刻存檔
+    //勾選完成：寫回「來源檔」
     connect(todoList, &QListWidget::itemChanged, this, [=](QListWidgetItem *it){
         if (!it) return;
         int idx = it->data(Qt::UserRole).toInt();
         if (idx < 0 || idx >= todoDone.size()) return;
 
-        todoDone[idx] = (it->checkState() == Qt::Checked);
-        saveTodosToFile(currentDate);
+        bool done = (it->checkState() == Qt::Checked);
+        todoDone[idx] = done;
+
+        //寫回來源檔
+        QDate srcD = todoSrcDate[idx];
+        int   srcI = todoSrcIndex[idx];
+        if (!setTodoDoneInFile(srcD, srcI, done)) {
+            QMessageBox::warning(this, "存檔失敗", "無法寫回待辦完成狀態到來源檔。");
+        }
+
+        // 重新整理（避免跨日顯示狀態不同步）
+        loadTodosForDate(currentDate);
+        refreshTodoList(currentDate);
+        refreshCalendarMarks();
     });
 
-    // ✅ 右鍵刪除 Todo
+    //右鍵刪除 Todo：刪「來源檔」那一筆
     todoList->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(todoList, &QListWidget::customContextMenuRequested, this, [=](const QPoint &pos){
         auto *it = todoList->itemAt(pos);
@@ -264,14 +278,17 @@ QWidget* MainWindow::buildListPanel() {
             return;
 
         if (idx < 0 || idx >= todos.size()) return;
-        todos.removeAt(idx);
-        if (idx < todoDone.size()) todoDone.removeAt(idx);
 
-        if (!saveTodosToFile(currentDate)) {
+        QDate srcD = todoSrcDate[idx];
+        int   srcI = todoSrcIndex[idx];
+
+        if (!deleteTodoInFile(srcD, srcI)) {
             QMessageBox::warning(this, "存檔失敗", "待辦刪除後無法寫入檔案 data/...");
             return;
         }
 
+        // 重新載入該天（跨日顯示）
+        loadTodosForDate(currentDate);
         refreshTodoList(currentDate);
         refreshCalendarMarks();
     });
@@ -304,13 +321,11 @@ QWidget* MainWindow::buildBottomBar() {
     h->addWidget(btnPlus, 1);
     h->addWidget(btnTodo, 1);
 
-    // ✅ 設定預算（寫進當天 json）
+    //設定預算（寫進當天 json）
     connect(btnBook, &QToolButton::clicked, this, [=]{
-        // 1) 先切回「記帳頁」
         if (stack) stack->setCurrentIndex(0);
         refreshDayList(currentDate);
 
-        // 2) 選單：設定 / 重設
         QMenu menu;
         QAction *actSet   = menu.addAction("設定本月預算");
         QAction *actReset = menu.addAction("重設本月預算（清空）");
@@ -321,12 +336,9 @@ QWidget* MainWindow::buildBottomBar() {
         if (act == actSet) {
             bool ok = false;
             double b = QInputDialog::getDouble(
-                this,
-                "設定預算",
-                "本月預算：",
+                this, "設定預算", "本月預算：",
                 account.getMonthlyBudget(),
-                0, 1e9, 0,
-                &ok
+                0, 1e9, 0, &ok
                 );
             if (!ok) return;
 
@@ -354,21 +366,21 @@ QWidget* MainWindow::buildBottomBar() {
             }
 
             refreshMonthSummary(currentDate);
-            // 清空後不需要 warning
             return;
         }
     });
 
-    // ✅ 新增（記帳/待辦）
+    //新增（記帳/待辦）
     connect(btnPlus, &QToolButton::clicked, this, [=]{
         QDate d = cal->chosenDate();
 
         currentDate = d;
         account.loadFromFile(d);
-        loadTodosFromFile(d);
+        loadTodosForDate(d);
 
         AddEntryDialog dlg(d, this);
 
+        // 記帳新增
         connect(&dlg, &AddEntryDialog::savedExpenseIncome, this, [=](const AccountItem& item){
             account.addItem(item);
 
@@ -382,31 +394,32 @@ QWidget* MainWindow::buildBottomBar() {
             refreshMonthSummary(d);
             checkBudgetWarning(d);
 
-            if (stack) stack->setCurrentIndex(0); // 回到記帳頁
+            if (stack) stack->setCurrentIndex(0);
         });
 
+        // Todo 新增（只寫入 d 那天的檔案）
         connect(&dlg, &AddEntryDialog::savedTodo, this, [=](const Todo& td){
-            todos.push_back(td);
-            todoDone.push_back(false);
-
-            if (!saveTodosToFile(d)) {
+            if (!appendTodoToFile(d, td)) {
                 QMessageBox::warning(this, "存檔失敗", "待辦無法寫入 data/...");
                 return;
             }
 
+            loadTodosForDate(d);
             refreshTodoList(d);
             refreshCalendarMarks();
 
-            if (stack) stack->setCurrentIndex(1); // 切去待辦頁看到新增結果
+            if (stack) stack->setCurrentIndex(1);
         });
 
         dlg.exec();
     });
 
-    // ✅ 待辦事項：切換到待辦頁
+    // 待辦事項：切換到待辦頁
     connect(btnTodo, &QToolButton::clicked, this, [=]{
         if (!stack) return;
         stack->setCurrentIndex(1);
+
+        loadTodosForDate(currentDate);
         refreshTodoList(currentDate);
     });
 
@@ -436,15 +449,14 @@ void MainWindow::refreshDayList(const QDate&) {
     sumLabel->setText(QString("支出:%1").arg(sumExpense));
 }
 
-// ✅ Todo：更新清單顯示（含勾選完成）
 void MainWindow::refreshTodoList(const QDate&) {
     if (!todoList) return;
 
-    todoList->blockSignals(true);  // 避免重建時 itemChanged 亂觸發
+    todoList->blockSignals(true);
     todoList->clear();
 
-    int idx = 0;
-    for (const auto& td : todos) {
+    for (int idx = 0; idx < todos.size(); ++idx) {
+        const auto& td = todos[idx];
         QString timeInfo = td.allDay
                                ? "全天"
                                : QString("%1-%2")
@@ -459,27 +471,64 @@ void MainWindow::refreshTodoList(const QDate&) {
         it->setCheckState(done ? Qt::Checked : Qt::Unchecked);
 
         todoList->addItem(it);
-        idx++;
     }
 
     todoList->blockSignals(false);
 }
 
-// ✅ 行事曆白點：記帳檔 or Todo 檔，有任一個就標記
-void MainWindow::refreshCalendarMarks() {
+void MainWindow::refreshCalendarMarks()
+{
+    if (!cal) return;
+
     QSet<QDate> marks;
 
     QDate first(cal->yearShown(), cal->monthShown(), 1);
     int days = first.daysInMonth();
 
+    // 記帳檔：有檔就標
     for (int d = 1; d <= days; ++d) {
         QDate date(first.year(), first.month(), d);
-
         QString accPath = QString("data/%1.json").arg(date.toString("yyyy-MM-dd"));
-        QString tdPath  = todoFilePath(date);
+        if (QFile::exists(accPath)) marks.insert(date);
+    }
 
-        if (QFile::exists(accPath) || QFile::exists(tdPath))
-            marks.insert(date);
+    // Todo：掃 data/*.todo.json，把覆蓋到本月日子的都標
+    QDir dir("data");
+    if (dir.exists()) {
+        QStringList files = dir.entryList(QStringList() << "*.todo.json", QDir::Files);
+
+        for (const QString& fn : files) {
+            QString dateStr = fn.left(10);
+            QDate fileDate = QDate::fromString(dateStr, "yyyy-MM-dd");
+            if (!fileDate.isValid()) continue;
+
+            QFile f(dir.filePath(fn));
+            if (!f.open(QIODevice::ReadOnly)) continue;
+
+            QJsonDocument doc = QJsonDocument::fromJson(f.readAll());
+            f.close();
+
+            QJsonArray arr = doc.object()["todos"].toArray();
+            for (const auto& v : arr) {
+                QJsonObject o = v.toObject();
+
+                Todo td;
+                td.title = o["title"].toString();
+                td.allDay = o["allDay"].toBool(true);
+                td.start = QDateTime::fromString(o["start"].toString(), Qt::ISODate);
+                td.end   = QDateTime::fromString(o["end"].toString(), Qt::ISODate);
+                if (!td.start.isValid()) td.start = QDateTime(fileDate, QTime(9,0));
+                if (!td.end.isValid())   td.end   = QDateTime(fileDate, QTime(10,0));
+
+                // 把覆蓋到本月每一天都標起來
+                for (int dd = 1; dd <= days; ++dd) {
+                    QDate target(first.year(), first.month(), dd);
+                    if (overlapsDate(td, target)) {
+                        marks.insert(target);
+                    }
+                }
+            }
+        }
     }
 
     cal->setMarkedDates(marks);
@@ -528,61 +577,127 @@ void MainWindow::checkBudgetWarning(const QDate& d) {
     }
 }
 
-// ====== ✅ Todo 存檔/讀檔 ======
-bool MainWindow::loadTodosFromFile(const QDate& d) {
+//Todo：跨日讀取（顯示用）
+bool MainWindow::loadTodosForDate(const QDate& d) {
     todos.clear();
     todoDone.clear();
+    todoSrcDate.clear();
+    todoSrcIndex.clear();
+
+    QDir dir("data");
+    if (!dir.exists()) return false;
+
+    // 找出所有 todo 檔
+    QStringList files = dir.entryList(QStringList() << "*.todo.json", QDir::Files);
+
+    for (const QString& fn : files) {
+        QString dateStr = fn.left(10);
+        QDate fileDate = QDate::fromString(dateStr, "yyyy-MM-dd");
+        if (!fileDate.isValid()) continue;
+
+        QFile f(dir.filePath(fn));
+        if (!f.open(QIODevice::ReadOnly)) continue;
+
+        QJsonDocument doc = QJsonDocument::fromJson(f.readAll());
+        f.close();
+
+        QJsonArray arr = doc.object()["todos"].toArray();
+
+        for (int i = 0; i < arr.size(); ++i) {
+            QJsonObject o = arr[i].toObject();
+
+            Todo td;
+            td.title = o["title"].toString();
+            td.allDay = o["allDay"].toBool(true);
+            td.start = QDateTime::fromString(o["start"].toString(), Qt::ISODate);
+            td.end   = QDateTime::fromString(o["end"].toString(), Qt::ISODate);
+            if (!td.start.isValid()) td.start = QDateTime(fileDate, QTime(9,0));
+            if (!td.end.isValid())   td.end   = QDateTime(fileDate, QTime(10,0));
+
+            if (overlapsDate(td, d)) {
+                todos.push_back(td);
+                todoDone.push_back(o["done"].toBool(false));
+                todoSrcDate.push_back(fileDate);
+                todoSrcIndex.push_back(i);
+            }
+        }
+    }
+
+    return true;
+}
+
+//新增：只 append 到「當天 d」的檔案
+bool MainWindow::appendTodoToFile(const QDate& d, const Todo& td)
+{
+    QJsonObject root;
+    QJsonArray arr;
 
     QFile f(todoFilePath(d));
-    if (!f.open(QIODevice::ReadOnly)) {
-        return false; // 沒檔案也算正常
+    if (f.exists()) {
+        if (!f.open(QIODevice::ReadOnly)) return false;
+        QJsonDocument doc = QJsonDocument::fromJson(f.readAll());
+        f.close();
+        root = doc.object();
+        arr = root["todos"].toArray();
     }
+
+    QJsonObject o;
+    o["title"] = td.title;
+    o["allDay"] = td.allDay;
+    o["start"] = td.start.toString(Qt::ISODate);
+    o["end"]   = td.end.toString(Qt::ISODate);
+    o["done"]  = false;
+
+    arr.append(o);
+    root["todos"] = arr;
+
+    if (!f.open(QIODevice::WriteOnly)) return false;
+    f.write(QJsonDocument(root).toJson());
+    f.close();
+    return true;
+}
+
+//勾選：寫回來源檔（srcDate + index）
+bool MainWindow::setTodoDoneInFile(const QDate& d, int index, bool done)
+{
+    QFile f(todoFilePath(d));
+    if (!f.open(QIODevice::ReadOnly)) return false;
 
     QJsonDocument doc = QJsonDocument::fromJson(f.readAll());
     f.close();
 
     QJsonObject root = doc.object();
     QJsonArray arr = root["todos"].toArray();
+    if (index < 0 || index >= arr.size()) return false;
 
-    for (const auto& v : arr) {
-        QJsonObject o = v.toObject();
+    QJsonObject o = arr[index].toObject();
+    o["done"] = done;
+    arr[index] = o;
 
-        Todo td;
-        td.title = o["title"].toString();
-        td.allDay = o["allDay"].toBool(true);
-        td.start = QDateTime::fromString(o["start"].toString(), Qt::ISODate);
-        td.end   = QDateTime::fromString(o["end"].toString(), Qt::ISODate);
+    root["todos"] = arr;
 
-        if (!td.start.isValid()) td.start = QDateTime(d, QTime(9,0));
-        if (!td.end.isValid())   td.end   = QDateTime(d, QTime(10,0));
-
-        todos.push_back(td);
-        todoDone.push_back(o["done"].toBool(false));
-    }
-
+    if (!f.open(QIODevice::WriteOnly)) return false;
+    f.write(QJsonDocument(root).toJson());
+    f.close();
     return true;
 }
 
-bool MainWindow::saveTodosToFile(const QDate& d) const {
-    QJsonArray arr;
+//刪除：刪來源檔（srcDate + index）
+bool MainWindow::deleteTodoInFile(const QDate& d, int index)
+{
+    QFile f(todoFilePath(d));
+    if (!f.open(QIODevice::ReadOnly)) return false;
 
-    for (int i = 0; i < todos.size(); ++i) {
-        const auto& td = todos[i];
+    QJsonDocument doc = QJsonDocument::fromJson(f.readAll());
+    f.close();
 
-        QJsonObject o;
-        o["title"] = td.title;
-        o["allDay"] = td.allDay;
-        o["start"] = td.start.toString(Qt::ISODate);
-        o["end"]   = td.end.toString(Qt::ISODate);
-        o["done"]  = (i < todoDone.size()) ? todoDone[i] : false;
+    QJsonObject root = doc.object();
+    QJsonArray arr = root["todos"].toArray();
+    if (index < 0 || index >= arr.size()) return false;
 
-        arr.append(o);
-    }
-
-    QJsonObject root;
+    arr.removeAt(index);
     root["todos"] = arr;
 
-    QFile f(todoFilePath(d));
     if (!f.open(QIODevice::WriteOnly)) return false;
     f.write(QJsonDocument(root).toJson());
     f.close();

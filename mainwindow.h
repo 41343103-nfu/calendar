@@ -1,70 +1,89 @@
-#pragma once
+#ifndef MAINWINDOW_H
+#define MAINWINDOW_H
+
 #include <QMainWindow>
 #include <QDate>
 #include <QVector>
 
-#include "models.h"
-#include "account.h"
 
 class QLabel;
 class QListWidget;
 class QToolButton;
-class DotCalendar;
 class QProgressBar;
 class QStackedWidget;
 
-class MainWindow : public QMainWindow {
+#include "account.h"
+#include "models.h"
+
+class DotCalendar;
+
+class MainWindow : public QMainWindow
+{
     Q_OBJECT
 public:
-    explicit MainWindow(QWidget *parent=nullptr);
+    explicit MainWindow(QWidget *parent = nullptr);
 
 private:
-    void applyStyle();
+    // UI builders
     QWidget* buildTopTitle();
     QWidget* buildMonthBar();
     QWidget* buildListPanel();
     QWidget* buildBottomBar();
 
+    // Refresh
     void refreshDayList(const QDate& d);
-    void refreshCalendarMarks();
-
-    void checkBudgetWarning(const QDate& d);
-    void refreshMonthSummary(const QDate& d);
-
-    // ===== Todo =====
-    bool loadTodosFromFile(const QDate& d);
-    bool saveTodosToFile(const QDate& d) const;
     void refreshTodoList(const QDate& d);
+    void refreshCalendarMarks();
+    void refreshMonthSummary(const QDate& d);
+    void checkBudgetWarning(const QDate& d);
+
+    // Todo file helpers
+    bool loadTodosForDate(const QDate& d);
+    bool appendTodoToFile(const QDate& d, const Todo& td);
+    bool setTodoDoneInFile(const QDate& d, int index, bool done);
+    bool deleteTodoInFile(const QDate& d, int index);
+
+    // Style
+    void applyStyle();
 
 private:
+    // Data
+    QDate currentDate;
+    Account account;
+
+    // Calendar
     DotCalendar *cal = nullptr;
+
+    // Month bar
     QLabel *monthTitle = nullptr;
 
-    // ✅ 月總覽
+    // List panel
+    QStackedWidget *stack = nullptr;
+
+    // Account page (page 0)
+    QLabel *sumLabel = nullptr;
+    QListWidget *list = nullptr;
+
+    // Todo page (page 1)
+    QListWidget *todoList = nullptr;
+
+    // Month summary
     QLabel *monthIncomeLabel = nullptr;
     QLabel *monthExpenseLabel = nullptr;
     QLabel *budgetLabel = nullptr;
     QProgressBar *budgetBar = nullptr;
 
-    // ✅ 中間區：切換 記帳/待辦
-    QStackedWidget *stack = nullptr;
-
-    // Page 0：記帳
-    QLabel *sumLabel = nullptr;
-    QListWidget *list = nullptr;
-
-    // Page 1：待辦
-    QListWidget *todoList = nullptr;
-
+    // Bottom bar
     QToolButton *btnBook = nullptr;
     QToolButton *btnPlus = nullptr;
     QToolButton *btnTodo = nullptr;
 
-    // ✅ 記帳
-    Account account;
-    QDate currentDate;
+    //跨日顯示用容器（顯示當天所有覆蓋到這一天的 todo）
+    QVector<Todo>  todos;
+    QVector<bool>  todoDone;
+    QVector<QDate> todoSrcDate;
+    QVector<int>   todoSrcIndex;
 
-    // ✅ Todo
-    QVector<Todo> todos;
-    QVector<bool> todoDone;
 };
+
+#endif // MAINWINDOW_H

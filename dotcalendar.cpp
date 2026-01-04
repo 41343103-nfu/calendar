@@ -4,8 +4,8 @@
 static const QColor BG("#0B0B0B");
 static const QColor TEXT("#EDEDED");
 static const QColor DIM("#555555");
-static const QColor ACCENT("#F5A623");        // 今天橘色
-static const QColor SELECTED(255,255,255,40); // ✅ 淺灰半透明
+static const QColor ACCENT("#F5A623");        //今天橘色
+static const QColor SELECTED(255,255,255,40); //淺灰半透明
 
 DotCalendar::DotCalendar(QWidget *parent)
     : QCalendarWidget(parent),
@@ -71,7 +71,7 @@ void DotCalendar::paintCell(QPainter *p, const QRect &r, QDate d) const {
 
     p->drawText(r.adjusted(0, -2, 0, 0), Qt::AlignCenter, QString::number(d.day()));
 
-    // 白點：當天有「記帳或待辦」就顯示
+    // 白點點：當天有「記帳或待辦」就顯示
     if (marked.contains(d)) {
         p->setBrush(TEXT);
         p->setPen(Qt::NoPen);
